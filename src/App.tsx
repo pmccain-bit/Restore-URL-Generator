@@ -113,6 +113,9 @@ export default function App() {
 
   const [copied, setCopied] = useState(false);
 
+  const studiosSortedByName = useMemo(() => [...STUDIOS].sort((a, b) => a.name.localeCompare(b.name)), []);
+  const studiosSortedByCode = useMemo(() => [...STUDIOS].sort((a, b) => a.code.localeCompare(b.code)), []);
+
   const handlePlatformChange = (platform: Platform) => {
     const macros = PLATFORM_MACROS[platform];
     setState(prev => ({
@@ -473,7 +476,7 @@ export default function App() {
                       className="w-full px-4 py-3 rounded-xl bg-white border border-zinc-200 focus:border-blue-500 outline-none text-sm appearance-none cursor-pointer"
                     >
                       <option value="">Select Code to Add...</option>
-                      {STUDIOS.map(s => (
+                      {studiosSortedByCode.map(s => (
                         <option key={s.code} value={s.code} disabled={state.sc.includes(s.code)}>{s.code}</option>
                       ))}
                     </select>
@@ -489,7 +492,7 @@ export default function App() {
                       className="w-full px-4 py-3 rounded-xl bg-white border border-zinc-200 focus:border-blue-500 outline-none text-sm appearance-none cursor-pointer"
                     >
                       <option value="">Select Name to Add...</option>
-                      {STUDIOS.map(s => (
+                      {studiosSortedByName.map(s => (
                         <option key={s.code} value={s.name} disabled={state.sc.includes(s.code)}>{s.name}</option>
                       ))}
                     </select>
