@@ -311,20 +311,20 @@ export default function App() {
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold">R</div>
             <div>
-              <h1 className="text-sm font-semibold uppercase tracking-wider">Restore Hyper Wellness</h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-sm font-semibold uppercase tracking-wider">Restore Hyper Wellness</h1>
+                <a 
+                  href="https://docs.google.com/document/d/1DkJBdJKeNVpvD3PfytLl0neS-Fr-gFCgWDl0StRo2-U/edit?tab=t.0" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-[10px] text-blue-600 hover:text-blue-700 transition-colors flex items-center gap-1 font-bold uppercase tracking-wider"
+                >
+                  <Info size={12} />
+                  Guide
+                </a>
+              </div>
               <p className="text-[10px] text-zinc-500 uppercase tracking-widest font-medium">UTM Builder • v2026.1</p>
             </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <a 
-              href="https://ai.google.dev/gemini-api/docs/billing" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="text-xs text-zinc-400 hover:text-zinc-600 transition-colors flex items-center gap-1"
-            >
-              <Info size={14} />
-              Guide
-            </a>
           </div>
         </div>
       </header>
