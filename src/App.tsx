@@ -18,7 +18,7 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { STUDIOS, AGENCIES, SERVICE_GROUPS, Studio, Agency } from './data';
+import { STUDIOS, AGENCIES, SERVICE_GROUPS, FRANCHISE_OWNERS, Studio, Agency } from './data';
 
 type Platform = 'google' | 'meta' | 'tiktok' | 'custom';
 
@@ -33,7 +33,7 @@ interface UTMState {
   sn: string[]; // studio names
   sc: string[]; // studio codes
   ag: string; // agency id
-  fg: string; // franchise group
+  fos: string[]; // franchise owners
   // Platform IDs/Names
   utm_campaign_id: string;
   utm_adset_id: string;
@@ -65,7 +65,7 @@ const PLATFORM_MACROS = {
     utm_adset_name: '{{adset.name}}',
     utm_ad_name: '{{ad.name}}',
     utm_source: 'facebook',
-    utm_medium: 'cpc',
+    utm_medium: 'paid-social',
   },
   tiktok: {
     utm_campaign_id: '{{campaign_id}}',
@@ -92,21 +92,21 @@ const PLATFORM_MACROS = {
 export default function App() {
   const [state, setState] = useState<UTMState>({
     baseUrl: 'https://cms.restore.com/',
-    platform: 'google',
-    utm_source: 'google',
-    utm_medium: 'cpc',
+    platform: 'meta',
+    utm_source: 'facebook',
+    utm_medium: 'paid-social',
     sv: '',
     pc: '',
     sn: [],
     sc: [],
     ag: '',
-    fg: 'RLUSA',
-    utm_campaign_id: '{campaignid}',
-    utm_adset_id: '{adgroupid}',
-    utm_ad_id: '{creative}',
-    utm_campaign_name: '{campaignname}',
-    utm_adset_name: '{adgroupname}',
-    utm_ad_name: '{creativename}',
+    fos: [],
+    utm_campaign_id: '{{campaign.id}}',
+    utm_adset_id: '{{adset.id}}',
+    utm_ad_id: '{{ad.id}}',
+    utm_campaign_name: '{{campaign.name}}',
+    utm_adset_name: '{{adset.name}}',
+    utm_ad_name: '{{ad.name}}',
     utm_content: '',
     customParams: '',
   });
@@ -139,17 +139,87 @@ export default function App() {
       setState(prev => ({
         ...prev,
         sn: [...prev.sn, studio.name],
-        sc: [...prev.sc, studio.code]
+        sc: [...prev.sc, studio.code],
+        // Auto-populate owner
+        fos: prev.fos.includes(studio.owner) ? prev.fos : [...prev.fos, studio.owner]
       }));
     }
   };
 
+  const handleOwnerChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const { value } = e.target;
+    if (!value) return;
+
+    if (state.fos.includes(value)) return;
+
+    // Find all studios for this owner
+    const studiosForOwner = STUDIOS.filter(s => s.owner === value);
+
+    setState(prev => {
+      const newSc = [...prev.sc];
+      const newSn = [...prev.sn];
+      
+      studiosForOwner.forEach(s => {
+        if (!newSc.includes(s.code)) {
+          newSc.push(s.code);
+          newSn.push(s.name);
+        }
+      });
+
+      return {
+        ...prev,
+        sc: newSc,
+        sn: newSn,
+        fos: [...prev.fos, value]
+      };
+    });
+  };
+
+  const removeOwner = (index: number) => {
+    const ownerToRemove = state.fos[index];
+    setState(prev => {
+      const newFos = prev.fos.filter((_, i) => i !== index);
+      
+      // Remove all studios belonging to this owner
+      const newSc: string[] = [];
+      const newSn: string[] = [];
+      
+      prev.sc.forEach((code, i) => {
+        const s = STUDIOS.find(studio => studio.code === code);
+        if (s && s.owner !== ownerToRemove) {
+          newSc.push(code);
+          newSn.push(prev.sn[i]);
+        }
+      });
+
+      return {
+        ...prev,
+        sc: newSc,
+        sn: newSn,
+        fos: newFos
+      };
+    });
+  };
+
   const removeStudio = (index: number) => {
-    setState(prev => ({
-      ...prev,
-      sn: prev.sn.filter((_, i) => i !== index),
-      sc: prev.sc.filter((_, i) => i !== index)
-    }));
+    setState(prev => {
+      const newSc = prev.sc.filter((_, i) => i !== index);
+      const newSn = prev.sn.filter((_, i) => i !== index);
+      
+      // Recalculate owners from remaining studios
+      const remainingOwners = new Set<string>();
+      newSc.forEach(code => {
+        const s = STUDIOS.find(studio => studio.code === code);
+        if (s) remainingOwners.add(s.owner);
+      });
+      
+      return {
+        ...prev,
+        sn: newSn,
+        sc: newSc,
+        fos: Array.from(remainingOwners)
+      };
+    });
   };
 
   const handleAgencyChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -172,7 +242,7 @@ export default function App() {
         `sn^${state.sn.length > 0 ? state.sn.join(',') : 'REQUIRED'}`,
         `pc^${state.pc || 'REQUIRED'}`,
         `sv^${state.sv || 'REQUIRED'}`,
-        `fg^${state.fg || 'REQUIRED'}`
+        `fo^${state.fos.length > 0 ? state.fos.join(',') : 'REQUIRED'}`
       ];
       
       if (state.customParams) {
@@ -218,7 +288,7 @@ export default function App() {
     return [
       { label: 'Required Platform IDs (Campaign, Adset, Ad)', valid: !!(state.utm_campaign_id && state.utm_adset_id && state.utm_ad_id) },
       { label: 'Canonical UTMs (Source, Medium, Campaign)', valid: !!(state.utm_source && state.utm_medium && state.baseUrl) },
-      { label: 'All 6 Required Substrings Present', valid: !!(state.ag && state.sc.length > 0 && state.sn.length > 0 && state.pc && state.sv && state.fg) },
+      { label: 'All 6 Required Substrings Present', valid: !!(state.ag && state.sc.length > 0 && state.sn.length > 0 && state.pc && state.sv && state.fos.length > 0) },
       { label: 'Format: key^value with | delimiter', valid: true }, // Built into logic
       { label: 'Base URL is valid', valid: finalUrl !== 'Invalid Base URL' && !!state.baseUrl }
     ];
@@ -269,7 +339,7 @@ export default function App() {
               <h2 className="text-sm font-bold uppercase tracking-tight">Platform Configuration</h2>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {(['google', 'meta', 'tiktok', 'custom'] as Platform[]).map((p) => (
+              {(['meta', 'google', 'tiktok', 'custom'] as Platform[]).map((p) => (
                 <button
                   key={p}
                   onClick={() => handlePlatformChange(p)}
@@ -428,17 +498,58 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Promo Code - Free Form */}
-              <div>
-                <label className="block text-[10px] font-bold uppercase text-zinc-400 mb-1.5 tracking-widest">Promo Code (pc)</label>
-                <input
-                  type="text"
-                  name="pc"
-                  value={state.pc}
-                  onChange={handleInputChange}
-                  placeholder="e.g. WINTER25"
-                  className="w-full px-4 py-3 rounded-xl bg-zinc-50 border border-zinc-200 focus:border-blue-500 outline-none text-sm"
-                />
+              {/* Franchise Owner Multi-Select */}
+              <div className="sm:col-span-2 space-y-4">
+                <div className="flex items-center justify-between">
+                  <label className="block text-[10px] font-bold uppercase text-zinc-400 tracking-widest">Franchise Owners (fo) ({state.fos.length})</label>
+                  {state.fos.length > 0 && (
+                    <button 
+                      onClick={() => setState(prev => ({ ...prev, fos: [] }))}
+                      className="text-[10px] font-bold text-red-500 uppercase hover:underline"
+                    >
+                      Clear All
+                    </button>
+                  )}
+                </div>
+                
+                <div className="flex flex-wrap gap-2 min-h-[44px] p-3 rounded-xl bg-zinc-50 border border-zinc-200">
+                  {state.fos.length === 0 ? (
+                    <span className="text-xs text-zinc-400 italic">No owners selected. Auto-populated by studio or add below.</span>
+                  ) : (
+                    state.fos.map((owner, idx) => (
+                      <motion.div 
+                        initial={{ scale: 0.8, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        key={owner} 
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 bg-white border border-zinc-200 rounded-lg shadow-sm"
+                      >
+                        <span className="text-[11px] font-bold text-blue-700 truncate max-w-[200px]">{owner}</span>
+                        <button 
+                          onClick={() => removeOwner(idx)}
+                          className="ml-1 p-0.5 hover:bg-zinc-100 rounded-full text-zinc-400 hover:text-zinc-600 transition-colors"
+                        >
+                          <RefreshCcw size={10} className="rotate-45" />
+                        </button>
+                      </motion.div>
+                    ))
+                  )}
+                </div>
+
+                <div className="relative">
+                  <label className="block text-[10px] font-bold uppercase text-zinc-400 mb-1.5 tracking-widest">Add Franchise Owner</label>
+                  <select
+                    name="fos"
+                    value=""
+                    onChange={handleOwnerChange}
+                    className="w-full px-4 py-3 rounded-xl bg-white border border-zinc-200 focus:border-blue-500 outline-none text-sm appearance-none cursor-pointer"
+                  >
+                    <option value="">Select Owner to Add...</option>
+                    {FRANCHISE_OWNERS.map(owner => (
+                      <option key={owner} value={owner} disabled={state.fos.includes(owner)}>{owner}</option>
+                    ))}
+                  </select>
+                  <ChevronDown size={14} className="absolute right-4 bottom-4 text-zinc-400 pointer-events-none" />
+                </div>
               </div>
 
               {/* Service Group Dropdown */}
@@ -458,15 +569,15 @@ export default function App() {
                 <ChevronDown size={14} className="absolute right-4 bottom-4 text-zinc-400 pointer-events-none" />
               </div>
 
-              {/* Franchise Group - Free Form */}
+              {/* Promo Code - Free Form */}
               <div>
-                <label className="block text-[10px] font-bold uppercase text-zinc-400 mb-1.5 tracking-widest">Franchise Group (fg)</label>
+                <label className="block text-[10px] font-bold uppercase text-zinc-400 mb-1.5 tracking-widest">Promo Code (pc)</label>
                 <input
                   type="text"
-                  name="fg"
-                  value={state.fg}
+                  name="pc"
+                  value={state.pc}
                   onChange={handleInputChange}
-                  placeholder="e.g. RLUSA or NA"
+                  placeholder="e.g. WINTER25"
                   className="w-full px-4 py-3 rounded-xl bg-zinc-50 border border-zinc-200 focus:border-blue-500 outline-none text-sm"
                 />
               </div>
@@ -624,7 +735,7 @@ export default function App() {
             <div className="mt-8 p-4 rounded-xl bg-white/5 border border-white/5">
               <h4 className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2">UTM Campaign Structure</h4>
               <code className="text-[10px] text-zinc-400 block break-all">
-                utm_campaign=ag^FOO|sc^TX001|sn^Austin|pc^WINTER25|sv^IV|fg^RLUSA
+                utm_campaign=ag^FOO|sc^TX001|sn^Austin|pc^WINTER25|sv^IV|fo^Corporate
               </code>
             </div>
           </section>
@@ -641,7 +752,7 @@ export default function App() {
                 'Macros must be platform-specific (e.g. {campaignid} for Google).',
                 'Use pipe (|) to delimit substrings, no spaces.',
                 'Multiple values in a substring should use commas (,).',
-                'Franchise Group (fg) should be "NA" for independent studios.'
+                'Franchise Owner (fo) should be "Corporate" for corporate studios.'
               ].map((tip, i) => (
                 <li key={i} className="flex items-start gap-2 text-[11px] text-blue-800 leading-relaxed">
                   <ChevronRight size={12} className="mt-0.5 shrink-0" />
